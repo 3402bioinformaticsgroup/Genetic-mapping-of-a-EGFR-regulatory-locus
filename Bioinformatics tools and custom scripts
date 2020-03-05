@@ -1,17 +1,20 @@
-# Mapping sequencing reads to genome:
+########### Mapping sequencing reads to genome:
+###########
 bowtie2 -p 20 -N 0 --n-ceil 0 --end-to-end -k 20 -S output.sam -x mapping.result.sam -x reference.sequence.index(GCA_002775205.2) input.fastq
 
-# Sort mapping result:
+########### Sort mapping result:
+###########
 samtools view -b -q 30 -S input.sam > output.bam
 samtools sort input.bam sorted.bam
 
-# Variant calling and genotyping
+########### Variant calling and genotyping：
+###########
 samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b sorted.bam.files.txt -u | bcftools call -mv > snp_indel.vcf
 samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b input.bam.files.txt -u | java -jar VarScan.v2.3.7.jar mpileup2snp --min-coverage 2 --p-value 0.05 > snp.txt
 samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b input.bam.files.txt -u | java -jar VarScan.v2.3.7.jar mpileup2indel --min-coverage 2 --p-value 0.05 > indel.txt
 
-# formatting genotyping results (varscan result)
-# perl scripts:
+########### formatting genotyping results (varscan result)
+########### perl scripts:
 open(my $fh, '>', $output);
 open FILE, $input or die "\n something is wrong$!";
 print $fh "#CHROM\tPOS\tTYPE\tDP\tRef\tAlt\t";
@@ -43,8 +46,8 @@ while(defined(my $line = <FILE>)){
 close FILE;
 close $fh;
 
-# formatting genotyping results (bcftools result)
-# perl scripts:
+########### formatting genotyping results (bcftools result)
+########### perl scripts:
 open(my $fh, '>', $output);
 open(my $fh2, '>', $output2);
 open FILE, $input or die "\nSomething is wrong $!";
@@ -106,3 +109,65 @@ while(defined(my $line = <FILE>)){
 close FILE;
 close $fh;
 close $fh2;
+
+########### Make haploid map
+########### R scripts
+snp<-read.table("") # varscan SNP result
+indel<-read.table("") # varscan Indel result
+polymor<-rbind(snp,indel)
+varscan.polymor<-as.matrix(polymor)
+
+# bcftools results      
+snp<-read.table("") # bcftools SNP result
+indel<-read.table("") # bcftools Indel result
+polymor<-rbind(snp,indel)
+bcf.polymor<-as.matrix(polymor)
+
+# read in probe location & and prepare chromosome information
+chr.name.convert                           # a table listing chromosome names
+chr                                        # a table listing chromosome lengthes
+chr<-merge(chr, chr.name.convert, by.x="Chr",by.y="chr.name", all=F)
+probe.illumina<-as.matrix(read.csv(""))    # read in custom probe genomic coordinates
+var.dat<-as.matrix(read.csv(""))           # read in interspecific polymorphisms between the two parental species
+for(i in each sample){
+	varscan.tab<-varscan.polymor
+	bcf.tab<-bcf.polymor
+	loci<-intersect(rownames(varscan.tab),rownames(bcf.tab)); varscan.tab<-varscan.tab[loci,];bcf.tab<-bcf.tab[loci,] 
+	tab    # matrix to store all loci with consistent genotyping results by both pipelines
+	for(x in 1:dim(tab)[1]){
+		if(varscan.tab[x,3] == bcf.tab[x,3]){
+		   tab[x,3]<-varscan.tab[x,3]
+		}
+	}
+		tab<-merge(tab, chr, by.x="Chrom", by.y="Chr", all=F)
+		tab<-cbind(tab, rep("passed",dim(tab)[1]))
+		colnames(tab)[6]<-"quality.filter"
+		for(j in 1:dim(tab)[1]){
+			chr2<-as.numeric(tab[j,"chr.number"])
+			loci<-as.numeric(tab[j,"Position"])
+			sub.probe<-probe.illumina[probe.illumina[,"chr"]==chr2,] 
+			if(min(abs(sub.probe$start-loci))>=75){tab[j,"quality.filter"]<-"failed"}
+		}
+		tab<-tab[tab[,"quality.filter"]=="passed",] # remove genotyping calls that are not supported by designed capture probes
+		chromos<-unique(tab[,"Chrom"])
+		for(x in 1:length(chromos)){
+			chr.geno<-tab[tab[,"Chrom"]==chromos[x],]
+			colnames(chr.geno)[3]<-"geno"
+			for (y in 1:(dim(chr.geno)[1]-1)){
+			location<-as.numeric(chr.geno[y,"Position"])
+			location2<-as.numeric(chr.geno[y+1,"Position"])
+			if((location2-location)<=75){if(chr.geno[y,"geno"]!="9/9"){if(chr.geno[y,"geno"]!=chr.geno[y+1,"geno"]) {chr.geno[y,"geno"]<-"9/9"; chr.geno[y+1,"geno"]<-"9/9"}
+			}}
+			if((location2-location)>75){
+				if(y>1){ if(location-as.numeric(chr.geno[y-1,"Position"]) > 75){chr.geno[y,"geno"]<-"9/9"}
+				         if(location-as.numeric(chr.geno[y-1,"Position"]) < 75){if(chr.geno[y,"geno"]!=chr.geno[y-1,"geno"]){chr.geno[y,"geno"]<-"9/9"}}
+				}
+			}
+		}
+	      tab[rownames(chr.geno),]<-chr.geno[rownames(chr.geno),]
+		}
+		tab<-tab[tab[,3] != "9/9",]
+		#for each sample within the tab, produce a single file as haploid map.
+		
+########### Testing for inheritence disequilibrium
+########### R scripts
