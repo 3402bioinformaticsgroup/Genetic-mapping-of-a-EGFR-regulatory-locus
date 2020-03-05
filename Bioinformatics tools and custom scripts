@@ -176,3 +176,61 @@ chr.name.convert                           # a table listing chromosome names
 chr                                        # a table listing chromosome lengthes
 chr<-merge(chr, chr.name.convert, by.x="Chr",by.y="chr.name", all=F)
 probe.illumina<-as.matrix(read.csv(""))    # read in custom probe genomic coordinates
+phenotype<-read.csv("")                    # read in a list of phenotypes
+for each locus{
+     cont.tab<-rbind(c(number of heterozygous tumor samples, number of homozygous tumor samples), 
+                     c(number of heterozygous benign samples, number of homozygous benign samples))
+		      -1*log(chisq.test(cont.tab)$p.value,10)
+}
+p.adjust(all p.values, "bonferroni")
+
+########### Make Manhatten plot
+########### R scripts
+plot(NULL, xlim= c(0, sum(chr$Length)), ylim=c(0, 16), xlab="Chromosomal 1-24", ylab="-Log10(p-value)", yaxt='n',xaxt='n')
+axis(side=2,at=0:16,las=2)
+    for each locus{   
+	if locus locate on odd number chromosome {point.col="red"}
+	if locus locate on even number chromosome {point.col="blue"}
+                if chromosome number of current locus >1{
+            coordinate<-coordinate of current locus on current chromosome i + sum of lengths of chromosome 1 to (i-1)
+            points(x=coordinate, y=-1*log(chisq.test(cont.tab)$p.value,10), col=adjustcolor( color, alpha.f = 0.2), cex=0.6, pch=16)
+                }
+                if chromosome number of current locus =1{
+            coordinate<-coordinate of locus on chromosome 1
+            points(x=coordinate, y=-1*log(chisq.test(cont.tab)$p.value,10), col=adjustcolor( color, alpha.f = 0.2), cex=0.6, pch=16)
+                }
+               
+    }
+	abline(h=, col="", lty=2)  #p value=0.01 and p value where borforino correction is 0.05
+	
+	
+########### Plot gene models
+########### R scripts
+plot(NULL, xlim= c(10580000, 10621085), ylim=c(-0.1,0.1), xlab="gene models", ylab="", xaxt='n', yaxt='n')
+	dnad5.gene<-c(10589458,10592450)
+	dnad5.mrna.start<-c(1,2508)+dnad5.gene[1]
+	dnad5.mrna.end  <-c(652,2993)+dnad5.gene[1]
+	dnad5.cds.start<-c(353,2508)+dnad5.gene[1]
+	dnad5.cds.end<-  c(652,2993)+dnad5.gene[1]
+	lines(dnad5.gene, rep(0,2), col="black")
+	segments(dnad5.mrna.start, rep(0, length(dnad5.mrna.start)), dnad5.mrna.end, rep(0, length(dnad5.mrna.start)), col="black", lwd=6)
+	segments(dnad5.cds.start, rep(0, length(dnad5.cds.start)), dnad5.cds.end, rep(0, length(dnad5.cds.start)), col="light blue", lwd=8)
+	#tspan1 coordinate
+	tspan.gene<-c(10598113,10601887)
+	tspan.mrna.start<-c(1,657,856,1095,1316,1526,2421,3668)+tspan.gene[1]
+	tspan.mrna.end<-c(521,749,984,1202,1390,1741,2492,3775)+tspan.gene[1]
+	tspan.cds.start<-c(462,657,856,1095,1316,1526,2421)+tspan.gene[1]
+	tspan.cds.end<-  c(521,749,984,1202,1390,1741,2477)+tspan.gene[1]
+	lines(tspan.gene, rep(0,2), col="black")
+	segments(tspan.mrna.start, rep(0, length(tspan.mrna.start)), tspan.mrna.end, rep(0, length(tspan.mrna.start)), col="black", lwd=6)
+	segments(tspan.cds.start, rep(0, length(tspan.cds.start)), tspan.cds.end, rep(0, length(tspan.cds.start)), col="light blue", lwd=8)
+	#rabsd coordinate
+	rab3d.gene<-c(10605640,10620085)
+	rab3d.mrna.start<-c(1,869,3848,8376,12317,14364)+rab3d.gene[1]
+	rab3d.mrna.end<-c(729,993,3966,8609,12469,14446)+rab3d.gene[1]					 
+	rab3d.cds.start<-c(542,869,3848,8376)+rab3d.gene[1]
+	rab3d.cds.end<-  c(729,993,3966,8609)+rab3d.gene[1]
+	lines(rab3d.gene, rep(0,2), col="black")
+	segments(rab3d.mrna.start, rep(0, length(rab3d.mrna.start)), rab3d.mrna.end, rep(0, length(rab3d.mrna.start)), col="black", lwd=6)
+	segments(rab3d.cds.start, rep(0, length(rab3d.cds.start)), rab3d.cds.end, rep(0, length(rab3d.cds.start)), col="light blue", lwd=8)
+
