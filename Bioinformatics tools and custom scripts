@@ -171,3 +171,8 @@ for(i in each sample){
 		
 ########### Testing for inheritence disequilibrium
 ########### R scripts
+tab                                        # filtered genotyping result for all samples
+chr.name.convert                           # a table listing chromosome names
+chr                                        # a table listing chromosome lengthes
+chr<-merge(chr, chr.name.convert, by.x="Chr",by.y="chr.name", all=F)
+probe.illumina<-as.matrix(read.csv(""))    # read in custom probe genomic coordinates
