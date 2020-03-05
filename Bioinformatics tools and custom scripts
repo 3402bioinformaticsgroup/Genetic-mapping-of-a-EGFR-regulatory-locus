@@ -1,0 +1,108 @@
+# Mapping sequencing reads to genome:
+bowtie2 -p 20 -N 0 --n-ceil 0 --end-to-end -k 20 -S output.sam -x mapping.result.sam -x reference.sequence.index(GCA_002775205.2) input.fastq
+
+# Sort mapping result:
+samtools view -b -q 30 -S input.sam > output.bam
+samtools sort input.bam sorted.bam
+
+# Variant calling and genotyping
+samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b sorted.bam.files.txt -u | bcftools call -mv > snp_indel.vcf
+samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b input.bam.files.txt -u | java -jar VarScan.v2.3.7.jar mpileup2snp --min-coverage 2 --p-value 0.05 > snp.txt
+samtools mpileup -f reference.sequence.(GCA_002775205.2).fa -b input.bam.files.txt -u | java -jar VarScan.v2.3.7.jar mpileup2indel --min-coverage 2 --p-value 0.05 > indel.txt
+
+# formatting genotyping results (varscan result)
+# perl scripts:
+open(my $fh, '>', $output);
+open FILE, $input or die "\n something is wrong$!";
+print $fh "#CHROM\tPOS\tTYPE\tDP\tRef\tAlt\t";
+foreach my $i (1..$NoSample){
+    my $temp = 'Sample' . '' . $i;
+    print $fh "$temp\t";
+}
+print $fh "\n";
+while(defined(my $line = <FILE>)){
+    unless($line =~ /^Chrom\tPosition/){
+    $line =~ s/\s/\t/g;
+    my @line_element = split "\t", $line;
+    my @INFO_element = split "\:", @line_element[4];
+        my $depth = @INFO_element[1];
+        print $fh "@line_element[0]\t@line_element[1]\tVar\t$depth\t@line_element[2]\t@line_element[3]\t"; #print registration information
+        foreach my $i (1..$NoSample){
+            my @gt = split /\:/, @line_element[9+$i];
+            my $pval = sprintf("%.5E",@gt[5]);
+            print $pval;
+            if(@gt[0] eq @line_element[2] && $pval>=0.05){print $fh "0/0\t";}  # test for reference call
+             elsif(@gt[0] eq "N"){print $fh "9/9\t";}                                                                         # test no call
+             elsif((split "\/", @gt[0])[0] eq (split "\/", @gt[0])[1] && $pval<=0.05){print $fh "1/1\t";}     # test for homozygous alternative allele call
+             elsif((split "\/", @gt[0])[0] eq "*" && $pval<=0.05){print $fh "0/1\t";}
+             else {print $fh "9/9\t";}
+        }
+        print $fh "\n"; #print newline as EOS;
+  }
+}
+close FILE;
+close $fh;
+
+# formatting genotyping results (bcftools result)
+# perl scripts:
+open(my $fh, '>', $output);
+open(my $fh2, '>', $output2);
+open FILE, $input or die "\nSomething is wrong $!";
+foreach my $i (1..$NoSample){
+    my $temp = 'Sample' . '' . $i;
+    print $fh "$temp\t";
+}
+print $fh "\n";
+print $fh2 "#CHROM\tPOS\tTYPE\tDP\tRef\tAlt\t";
+foreach my $i (1..$NoSample){
+    my $temp ='Sample' . '' . $i;
+    print $fh2 "$temp\t";
+}
+print $fh2 "\n";
+while(defined(my $line = <FILE>)){
+    unless($line =~ /^#/){
+    $line =~ s/\s/\t/g;
+    my @line_element = split "\t", $line;
+    my @INFO_element = split ";", @line_element[7];
+    if(@INFO_element[0]=~/DP/){
+        my @piece = split "=", @INFO_element[0];
+        my $depth = @piece[1];
+        print $fh "@line_element[0]\t@line_element[1]\tSNP\t$depth\t@line_element[3]\t@line_element[4]\t"; #print registration information
+        foreach my $i (1..$NoSample){
+            my @genotype_sample = split /\:/, @line_element[8+$i];
+            my @gt = split /,/, @genotype_sample[1];
+			if ((scalar @gt) == 3){
+            if(@genotype_sample[0] =~ /0\/0/){if(@gt[0]==0 && @gt[1]>=20 && @gt[2]>=20){print $fh "@genotype_sample[0]\t";}else{print $fh "9/9\t";}}  # also need to put in test for other genotype score (<20)
+            if(@genotype_sample[0] =~ /0\/1/){if(@gt[1]==0 && @gt[0]>=20 && @gt[2]>=20){print $fh "@genotype_sample[0]\t";}else{print $fh "9/9\t";}}
+            if(@genotype_sample[0] =~ /1\/1/){if(@gt[2]==0 && @gt[0]>=20 && @gt[1]>=20){print $fh "@genotype_sample[0]\t";}else{print $fh "9/9\t";}}
+            if(@genotype_sample[0] =~ /\.\/\./){print $fh "9/9\t";}
+		   }
+		   else{print $fh "9/9\t";}
+        }
+        print $fh "\n"; #print newline as EOS;
+    }  else  {if(@INFO_element[0]=~/INDEL/){
+        my @piece_2 = split "=", @INFO_element[3];
+        my $depth_2 = @piece_2[1];
+        print $fh2 "@line_element[0]\t@line_element[1]\tInDel\t$depth_2\t@line_element[3]\t@line_element[4]\t"; #print registration information
+        foreach my $i (1..$NoSample){
+            my @genotype_sample = split /\:/, @line_element[8+$i];
+            my @gt2 = split /,/, @genotype_sample[1];
+			if ((scalar @gt2) == 3){
+            if(@genotype_sample[0] =~ /0\/0/){if(@gt2[0]==0 && @gt2[1]>=20 && @gt2[2]>=20){print $fh2 "@genotype_sample[0]\t";}else{print $fh2 "9/9\t";}}
+            if(@genotype_sample[0] =~ /0\/1/){if(@gt2[1]==0 && @gt2[0]>=20 && @gt2[2]>=20){print $fh2 "@genotype_sample[0]\t";}else{print $fh2 "9/9\t";}}
+            if(@genotype_sample[0] =~ /1\/1/){if(@gt2[2]==0 && @gt2[0]>=20 && @gt2[1]>=20){print $fh2 "@genotype_sample[0]\t";}else{print $fh2 "9/9\t";}}
+            if(@genotype_sample[0] =~ /\.\/\./){print $fh2 "9/9\t";}
+		 }
+		  else{print $fh2 "9/9\t";}
+		}
+        print $fh2 "\n"; #print newline as EOS;
+       }
+    }
+ }
+}
+    
+
+
+close FILE;
+close $fh;
+close $fh2;
